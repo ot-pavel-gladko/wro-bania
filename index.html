@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrocław Banya Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --border: #e3e1dc;
+    --landmark: #c2410c; --museum: #7c3aed; --park: #15803d; --food: #b45309; --transport: #1d4ed8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151517; --panel: #1f1f22; --text: #f2f2f3; --muted: #a0a0a8; --border: #34343a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { display: grid; grid-template-columns: 300px 1fr; height: 100%; }
+  aside { background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 18px 16px; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: transparent;
+    color: var(--text); border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .chip.off { opacity: .4; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; }
+  li:hover { background: var(--bg); }
+  li .ico { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+  li .ico svg { width: 16px; height: 16px; }
+  li small { display: block; color: var(--muted); font-size: 12px; }
+  #map { height: 100%; }
+  .style-switch select { border: 0; background: #fff; color: #1d1d1f; padding: 6px 8px; font: 13px system-ui, sans-serif; border-radius: 4px; cursor: pointer; }
+
+  /* Custom marker: coloured pin with an icon inside */
+  .pin { width: 36px; height: 46px; position: relative; cursor: pointer; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); transition: transform .15s; }
+  .pin:hover { transform: translateY(-3px) scale(1.08); }
+  .pin > svg.shape { position: absolute; inset: 0; }
+  .pin > .glyph { position: absolute; top: 7px; left: 9px; width: 18px; height: 18px; color: #fff; }
+
+  /* Popup */
+  .maplibregl-popup-content { border-radius: 12px; padding: 0; overflow: hidden; width: 260px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+  .maplibregl-popup-close-button { color: #fff; font-size: 18px; padding: 2px 8px; }
+  .pop-head { padding: 12px 14px; color: #fff; }
+  .pop-head .cat { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .9; }
+  .pop-head h3 { margin: 2px 0 0; font-size: 16px; }
+  .pop-body { padding: 10px 14px 14px; color: #1d1d1f; }
+  .pop-body p { margin: 0 0 8px; }
+  .pop-body dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; }
+  .pop-body dt { color: #6b6b70; }
+  .pop-body dd { margin: 0; }
+  .pop-body > a { display: inline-block; margin-top: 10px; font-weight: 600; }
+  .pop-body dd a { color: inherit; }
+
+  .handle, .back { display: none; }
+  .detail .pop-head { border-radius: 12px 12px 0 0; }
+  .detail .pop-body { color: var(--text); background: var(--bg); border-radius: 0 0 12px 12px; }
+  .detail .pop-body dt { color: var(--muted); }
+  .detail .pop-body a { color: #2563eb; }
+  @media (prefers-color-scheme: dark) { .detail .pop-body a { color: #7aa7ff; } }
+
+  /* ---- Mobile: full-screen map + bottom sheet ---- */
+  @media (max-width: 720px) {
+    .app { display: block; position: relative; height: 100vh; height: 100dvh; }
+    #map { position: absolute; inset: 0; }
+    aside {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+      max-height: 70vh; max-height: 70dvh;
+      border-right: 0; border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 20px rgba(0,0,0,.18);
+      padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+      overflow-y: hidden;
+      transform: translateY(calc(100% - 64px));
+      transition: transform .25s ease;
+    }
+    aside.open { transform: none; overflow-y: auto; }
+    .handle { display: flex; justify-content: center; align-items: center; width: 100%; height: 22px;
+      border: 0; background: transparent; padding: 0; cursor: pointer; position: sticky; top: 0; }
+    .handle span { width: 40px; height: 5px; border-radius: 3px; background: var(--border); }
+    .sheet-head { cursor: pointer; display: flex; align-items: baseline; justify-content: space-between; height: 42px; }
+    h1 { font-size: 18px; }
+    .count { color: var(--muted); font-size: 13px; }
+    .sub { margin-bottom: 12px; }
+    li { padding: 12px 8px; }            /* bigger touch targets */
+    .chip { padding: 7px 12px; font-size: 13px; }
+    .back { display: inline-block; border: 0; background: transparent; color: var(--text);
+      font: 600 14px system-ui, sans-serif; padding: 8px 0 12px; cursor: pointer; }
+    .pin:hover { transform: none; }
+    .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right { bottom: 64px; }
+  }
+  @media (min-width: 721px) { .count { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="sheet">
+    <button class="handle" id="handle" aria-label="Show or hide list"><span></span></button>
+    <div class="sheet-head" id="sheetHead"><h1>Wrocław banyas</h1><span class="count" id="count"></span></div>
+    <div id="listView">
+      <p class="sub">Banyas (bathhouses) in and around Wrocław. Tap a pin or list item for details.</p>
+      <div class="filters" id="filters"></div>
+      <ul id="list"></ul>
+    </div>
+    <div id="detailView" hidden></div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<script>
+// ---- Icons (inline SVG, white stroke) -------------------------------------
+const STEAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4c-1.5 1.5-1.5 3 0 4.5S8.5 11.5 7 13M12 4c-1.5 1.5-1.5 3 0 4.5s1.5 3 0 4.5M17 4c-1.5 1.5-1.5 3 0 4.5s1.5 3 0 4.5"/><path d="M3 17h18M5 17v4M19 17v4"/></svg>';
+const ICONS = { exact: STEAM, approx: STEAM };
+const CATEGORIES = {
+  exact:  { label: 'Exact address',   hex: '#15803d' },
+  approx: { label: 'Approximate area', hex: '#7a5c3e' }
+};
+
+// ---- Saunas / banyas -------------------------------------------------------
+// Prices are not published online for any of these; they quote on request (Instagram / phone).
+const POINTS = [
+  { name: 'The Bania', cat: 'exact', lat: 51.0986454, lng: 16.9363247,
+    desc: 'Wood-fired Russian banya, rented to one group at a time (up to 6 people). Jacuzzi, massages and a relaxation area. Booking in advance required.',
+    address: 'Rakietowa 21, 54-615 Wrocław (Muchobór Wielki)',
+    hours: 'Daily 12:00–24:00',
+    price: 'Mon–Thu 200 zł/h<br>Fri–Sun 250 zł/h<br>Up to 6 people; each extra guest +30 zł<br>Each hour after the 2nd: −50%',
+    phone: '+48 662 755 272', email: 'wroclaw.bania@gmail.com',
+    insta: 'the_bania_', link: 'https://www.instagram.com/the_bania_/' },
+  { name: 'Sauna Wrocław', cat: 'exact', lat: 51.0484479, lng: 17.0590647,
+    desc: 'Siberian-style banya heated with wood, with a wooden cabin to rest in. Steaming with birch whisks (veniki).',
+    address: 'Buforowa 117, Wrocław (Jagodno)',
+    hours: 'By reservation', price: '1 h: 300 zł<br>2 h: 500 zł<br>3 h: 600 zł<br>Each further hour: +150 zł<br>Over 6 people: +50 zł per extra guest',
+    phone: '+48 886 659 764 / +48 518 994 410', email: 'biurosaunawroclaw@gmail.com',
+    insta: 'saunawroclaw', link: 'https://www.instagram.com/saunawroclaw/' },
+  { name: 'Bania Mi Paruje', cat: 'approx', lat: 51.0525853, lng: 17.2201824,
+    desc: 'New banya in Jeszkowice (east of Wrocław, near Siechnice) for up to 10 people, just opened. Highly recommended by people who have been. The pin marks the village centre, not the exact spot.',
+    address: 'Jeszkowice, gmina Czernica (exact address: check Instagram)',
+    hours: 'From 18:00: minimum 3 h booking', price: '1 h: 350 zł<br>2 h: 650 zł<br>3 h: 900 zł<br>Each further hour: 50 zł discount<br>Up to 10 people',
+    insta: 'baniami.paruje', link: 'https://www.instagram.com/baniami.paruje/' },
+  { name: 'Sauna Sansara', cat: 'exact', lat: 51.1284037, lng: 16.7802863,
+    desc: 'Private sauna house for up to 8 people, rented to one group at a time. Banya with veniki (whisk steaming). Book by phone.',
+    address: 'ul. Porzeczkowa 9a, 55-330 Lutynia',
+    hours: 'By reservation (phone)', price: '150 zł/h for up to 8 people',
+    phone: '+48 721 447 140',
+    insta: 'sauna_lutynia', link: 'https://www.instagram.com/sauna_lutynia/' }
+];
+
+// ---- Map ------------------------------------------------------------------
+// OpenFreeMap: free OpenStreetMap-based map, no API key, works from a local file.
+const map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://tiles.openfreemap.org/styles/bright',
+  bounds: [[16.74, 51.02], [17.26, 51.15]],   // fits all saunas
+  fitBoundsOptions: { padding: 50 }
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+// Map style switcher (all free, no API key)
+const STYLES = { 'Bright': 'bright', 'Liberty': 'liberty', 'Positron (light)': 'positron' };
+const styleCtl = document.createElement('div');
+styleCtl.className = 'maplibregl-ctrl maplibregl-ctrl-group style-switch';
+styleCtl.innerHTML = '<select aria-label="Map style">' +
+  Object.entries(STYLES).map(([k, v]) => `<option value="${v}">${k}</option>`).join('') + '</select>';
+styleCtl.querySelector('select').onchange = e =>
+  map.setStyle('https://tiles.openfreemap.org/styles/' + e.target.value);
+map.addControl({ onAdd: () => styleCtl, onRemove: () => styleCtl.remove() }, 'top-left');
+
+function pinElement(p) {
+  const c = CATEGORIES[p.cat].hex;
+  const el = document.createElement('div');
+  el.className = 'pin';
+  el.title = p.name;
+  el.innerHTML = `<svg class="shape" viewBox="0 0 36 46"><path d="M18 1C8.6 1 1 8.6 1 18c0 12.5 17 27 17 27s17-14.5 17-27C35 8.6 27.4 1 18 1z" fill="${c}" stroke="#fff" stroke-width="2"/></svg>
+    <div class="glyph">${ICONS[p.cat]}</div>`;
+  return el;
+}
+
+function popupHtml(p) {
+  const c = CATEGORIES[p.cat];
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
+  return `<div class="pop-head" style="background:${c.hex}">
+      <div class="cat">Banya · ${c.label}</div><h3>${p.name}</h3></div>
+    <div class="pop-body"><p>${p.desc}</p>
+      <dl>${row('Address', p.address)}${row('Hours', p.hours)}${row('Price', p.price)}
+        ${row('Phone', p.phone && `<a href="tel:${p.phone.split('/')[0].replace(/\s/g,'')}">${p.phone}</a>`)}
+        ${row('Email', p.email && `<a href="mailto:${p.email}">${p.email}</a>`)}</dl>
+      ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">@${p.insta} on Instagram →</a>` : ''}</div>`;
+}
+
+POINTS.forEach(p => {
+  p.el = pinElement(p);
+  p.popup = new maplibregl.Popup({ offset: 40, maxWidth: '280px' }).setLngLat([p.lng, p.lat]).setHTML(popupHtml(p));
+  p.marker = new maplibregl.Marker({ element: p.el, anchor: 'bottom' })
+    .setLngLat([p.lng, p.lat])
+    .addTo(map);
+  p.el.addEventListener('click', e => {
+    e.stopPropagation();
+    lastPinTap = Date.now();
+    if (mobile.matches) focusPoint(p, false);
+    else { closePopups(); p.popup.addTo(map); }
+  });
+});
+
+// ---- Mobile bottom sheet ---------------------------------------------------
+const mobile = window.matchMedia('(max-width: 720px)');
+const sheet = document.getElementById('sheet');
+const listView = document.getElementById('listView');
+const detailView = document.getElementById('detailView');
+let lastPinTap = 0;
+
+function closePopups() { POINTS.forEach(o => o.popup.remove()); }
+function setSheet(open) { sheet.classList.toggle('open', open); }
+function showList() { detailView.hidden = true; listView.hidden = false; }
+function showDetails(p) {
+  detailView.innerHTML = `<button class="back" id="back">← All banyas</button><div class="detail">${popupHtml(p)}</div>`;
+  detailView.querySelector('#back').onclick = showList;
+  listView.hidden = true; detailView.hidden = false;
+  sheet.scrollTop = 0;
+  setSheet(true);
+}
+document.getElementById('handle').onclick = () => setSheet(!sheet.classList.contains('open'));
+document.getElementById('sheetHead').onclick = () => { if (mobile.matches) setSheet(!sheet.classList.contains('open')); };
+map.on('click', () => { if (mobile.matches && Date.now() - lastPinTap > 400) setSheet(false); });
+mobile.addEventListener('change', () => { closePopups(); showList(); setSheet(false); });
+
+// Fly to a point. Mobile: details in the sheet, pin kept visible above it. Desktop: map popup.
+function focusPoint(p, zoomIn = true) {
+  closePopups();
+  if (mobile.matches) {
+    showDetails(p);
+    map.flyTo({ center: [p.lng, p.lat], zoom: zoomIn ? 15 : map.getZoom(), duration: 800,
+      padding: { top: 40, bottom: Math.min(sheet.offsetHeight, window.innerHeight * 0.7), left: 0, right: 0 } });
+  } else {
+    map.flyTo({ center: [p.lng, p.lat], zoom: 16, duration: 800 });
+    map.once('moveend', () => p.popup.addTo(map));
+  }
+}
+
+function showCategory(cat, visible) {
+  POINTS.filter(p => p.cat === cat).forEach(p => {
+    if (visible) p.marker.addTo(map); else { p.popup.remove(); p.marker.remove(); }
+  });
+}
+
+// ---- Sidebar: filters + list ----------------------------------------------
+const active = new Set(Object.keys(CATEGORIES));
+const filtersEl = document.getElementById('filters');
+const listEl = document.getElementById('list');
+
+Object.entries(CATEGORIES).forEach(([k, c]) => {
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.innerHTML = `<span class="dot" style="background:${c.hex}"></span>${c.label}`;
+  b.onclick = () => {
+    if (active.has(k)) { active.delete(k); showCategory(k, false); b.classList.add('off'); }
+    else { active.add(k); showCategory(k, true); b.classList.remove('off'); }
+    renderList();
+  };
+  filtersEl.appendChild(b);
+});
+
+function renderList() {
+  listEl.innerHTML = '';
+  POINTS.filter(p => active.has(p.cat)).forEach(p => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="ico" style="background:${CATEGORIES[p.cat].hex}">${ICONS[p.cat]}</span>
+      <span>${p.name}<small>${p.address}</small></span>`;
+    li.onclick = () => focusPoint(p);
+    listEl.appendChild(li);
+  });
+  document.getElementById('count').textContent = `${listEl.children.length} places ▴`;
+}
+renderList();
+</script>
+</body>
+</html>
