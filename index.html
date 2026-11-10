@@ -134,10 +134,12 @@ const POINTS = [
     hours: 'By reservation', price: '1 h: 300 zł<br>2 h: 500 zł<br>3 h: 600 zł<br>Each further hour: +150 zł<br>Over 6 people: +50 zł per extra guest',
     phone: '+48 886 659 764 / +48 518 994 410', email: 'biurosaunawroclaw@gmail.com',
     insta: 'saunawroclaw', link: 'https://www.instagram.com/saunawroclaw/' },
-  { name: 'Bania Mi Paruje', cat: 'approx', lat: 51.0525853, lng: 17.2201824,
-    desc: 'New banya in Jeszkowice (east of Wrocław, near Siechnice) for up to 10 people, just opened. Highly recommended by people who have been. The pin marks the village centre, not the exact spot.',
-    address: 'Jeszkowice, gmina Czernica (exact address: check Instagram)',
-    hours: 'From 18:00: minimum 3 h booking', price: '1 h: 350 zł<br>2 h: 650 zł<br>3 h: 900 zł<br>Each further hour: 50 zł discount<br>Up to 10 people',
+  { name: 'Bania Mi Paruje', cat: 'exact', lat: 51.0540840, lng: 17.2066555,
+    desc: 'Wet Slavic banya in a wooden house among oak trees by the river, with a terrace and loungers. For up to 10 people. The owner, Michał, guides the full steaming ritual with birch and oak veniki.',
+    address: 'ul. Janowicka, 55-002 Gajków (next to Jeszkowice)',
+    hours: 'Mon 9:00–17:00, Tue–Sun 10:00–22:00<br>From 18:00: minimum 3 h booking',
+    price: '1 h: 350 zł<br>2 h: 650 zł<br>3 h: 900 zł<br>Each further hour: 50 zł discount<br>Up to 10 people',
+    rating: '★ 5.0 on Google (16 reviews)',
     phone: '+48 736 208 110',
     insta: 'baniami.paruje', link: 'https://www.instagram.com/baniami.paruje/' },
   { name: 'Sauna Sansara', cat: 'exact', lat: 51.1284037, lng: 16.7802863,
@@ -153,7 +155,7 @@ const POINTS = [
 const map = new maplibregl.Map({
   container: 'map',
   style: 'https://tiles.openfreemap.org/styles/bright',
-  bounds: [[16.74, 51.02], [17.26, 51.15]],   // fits all saunas
+  bounds: [[16.74, 51.02], [17.24, 51.15]],   // fits all saunas
   fitBoundsOptions: { padding: 50 }
 });
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -184,7 +186,7 @@ function popupHtml(p) {
   return `<div class="pop-head" style="background:${c.hex}">
       <div class="cat">Banya · ${c.label}</div><h3>${p.name}</h3></div>
     <div class="pop-body"><p>${p.desc}</p>
-      <dl>${row('Address', p.address)}${row('Hours', p.hours)}${row('Price', p.price)}
+      <dl>${row('Address', p.address)}${row('Hours', p.hours)}${row('Price', p.price)}${row('Rating', p.rating)}
         ${row('Phone', p.phone && `<a href="tel:${p.phone.split('/')[0].replace(/\s/g,'')}">${p.phone}</a>`)}
         ${row('Email', p.email && `<a href="mailto:${p.email}">${p.email}</a>`)}</dl>
       ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">@${p.insta} on Instagram →</a>` : ''}</div>`;
